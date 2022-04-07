@@ -27,7 +27,7 @@ prev_appts as (
     row_number() over (partition by a.cust_id_nbr order by b.appt_dt desc) as prev_rn
   from expiring_ctrcs a
   left join contracts_management.sf_appointments b
-  on a.emp_id = b.emp_id
+  on a.cust_id_nbr = b.cust_id_nbr
   and b.appt_dt < '{dbutils.widgets.get('run_dt')}'
   ),
   
@@ -37,7 +37,7 @@ next_appts as (
     row_number() over (partition by a.cust_id_nbr order by b.appt_dt asc) as next_rn
   from (select * from prev_appts where prev_rn = 1) a
   left join contracts_management.sf_appointments b
-  on a.emp_id = b.emp_id
+  on a.cust_id_nbr = b.cust_id_nbr
   and b.appt_dt >= '{dbutils.widgets.get('run_dt')}'
 )
 
@@ -93,12 +93,20 @@ recipient = df.first().emp_email_id
 recipient_name = recipient.split('@')[0].split('.')[0].title()
 cust_id_nbr = df.first().cust_id_nbr
 ben_ctrc_nbr = df.first().ben_ctrc_nbr
-customer_name = "John"
+customer_name = "John Smith"
 most_likely_next_product = products[int(df.first().predictions)]
 total_contracts_owned = 3
 total_aum = 1000000
-last_sf_meeting = df.first().prev_appt_dt
-scheduled_sf_meeting = df.first().next_appt_dt
+
+try:
+  last_sf_meeting = df.first().prev_appt_dt.strftime("%m/%d/%Y")
+except:
+  last_sf_meeting = "No Appointment Found"
+  
+try:
+  scheduled_sf_meeting = df.first().next_appt_dt.strftime("%m/%d/%Y")
+except:
+  scheduled_sf_meeting = "No Appointment Found"
 
 # COMMAND ----------
 
@@ -112,8 +120,8 @@ with open('/dbfs/FileStore/email_template.html', 'r') as f:
     .replace('MYINSERT_most_likely_next_product', most_likely_next_product)
     .replace('MYINSERT_total_aum', f"{total_aum:,}")
     .replace('MYINSERT_total_contracts_owned', str(total_contracts_owned))
-    .replace('MYINSERT_last_sf_meeting', last_sf_meeting.strftime("%m/%d/%Y"))
-    .replace('MYINSERT_scheduled_sf_meeting', scheduled_sf_meeting.strftime("%m/%d/%Y"))
+    .replace('MYINSERT_last_sf_meeting', last_sf_meeting)
+    .replace('MYINSERT_scheduled_sf_meeting', scheduled_sf_meeting)
   )
 
 # COMMAND ----------
@@ -124,13 +132,13 @@ with open('/dbfs/FileStore/email_template.html', 'r') as f:
 
 # MAGIC %md
 # MAGIC #### Send Email with AWS SES
-# MAGIC This integration is not currently setup with Databricks.
+# MAGIC This integration is not currently setup with Databricks. However, we sent test emails from AWS SES manually and we were able to verify that we could make the emails show as if they are coming form the Sales Desk. We ran into issues with the HTML display, but we could resolve them with more time.
 
 # COMMAND ----------
 
 # Replace sender@example.com with your "From" address.
 # This address must be verified with Amazon SES.
-SENDER = "Sender Name <sender@example.com>"
+SENDER = "BoxSalesDesk@thrivent.com"
 
 # Replace recipient@example.com with a "To" address. If your account 
 # is still in the sandbox, this address must be verified.
